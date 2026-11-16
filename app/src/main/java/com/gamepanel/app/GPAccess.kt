@@ -18,9 +18,11 @@ import android.os.Handler
 import android.os.Looper
 import android.os.StatFs
 import android.os.SystemClock
+import android.util.DisplayMetrics
 import android.provider.Settings
 import android.view.Choreographer
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
@@ -262,18 +264,47 @@ class GPAccess : AccessibilityService() {
 
     fun rebuild() = selectTab(cur)
 
-    fun place() {
+    private fun safe(): IntArray {
+        val r = resources
+        val id = r.getIdentifier("status_bar_height", "dimen", "android")
+        val top = if (id > 0) r.getDimensionPixelSize(id) else ui.dp(26)
+        val nid = r.getIdentifier("navigation_bar_height", "dimen", "android")
+        val nav = if (nid > 0) r.getDimensionPixelSize(nid) else ui.dp(48)
+        val m = DisplayMetrics()
+        wm.defaultDisplay.getRealMetrics(m)
+        val land = m.widthPixels > m.heightPixels
+        return intArrayOf(m.widthPixels, m.heightPixels, top, if (land) 0 else nav)
+    }     private fun placeHandle() {
         val u = ui
-        val m = resources.displayMetrics
         val barH = u.dp(prefs.getInt("hh", 80).coerceAtLeast(24))
         val winH = barH + u.dp(40)
         val side = if (left) Gravity.START else Gravity.END
+        val s = safe()
+        val lo = s[2] + u.dp(8)
+        val hi = s[1] - s[3] - winH - u.dp(8)
         hlp.height = winH
         hlp.gravity = side or Gravity.TOP
-        hlp.y = (m.heightPixels - winH) * hy / 100
+        hlp.y = lo + (hi - lo).coerceAtLeast(0) * hy / 100
         handle.gravity = side or Gravity.CENTER_VERTICAL
         bar.layoutParams = LinearLayout.LayoutParams(u.dp(4), barH)
         bar.alpha = prefs.getInt("ha", 90).coerceAtLeast(20) / 100f
+        if (hAdded) wm.updateViewLayout(handle, hlp)
+    }
+
+    private fun moveHandle(rx: Float, ry: Float) {
+        val s = safe()
+        val lo = s[2] + ui.dp(8)
+        val hi = s[1] - s[3] - hlp.height - ui.dp(8)
+        val span = (hi - lo).coerceAtLeast(1)
+        hy = ((ry - hlp.height / 2f - lo) * 100f / span).toInt().coerceIn(0, 100)
+        left = rx < s[0] / 2f
+        placeHandle()
+    }
+
+    fun place() {
+        val u = ui
+        placeHandle()
+        val side = if (left) Gravity.START else Gravity.END
         plp.gravity = side or Gravity.TOP
         val r = u.dp(22).toFloat()
         val bg = GradientDrawable(
@@ -284,7 +315,6 @@ class GPAccess : AccessibilityService() {
         else floatArrayOf(r, r, 0f, 0f, 0f, 0f, r, r)
         bg.setStroke(u.dp(1), 0x26FFFFFF)
         panel.background = bg
-        if (hAdded) wm.updateViewLayout(handle, hlp)
         if (added) wm.updateViewLayout(panel, plp)
     }
 
@@ -300,15 +330,40 @@ class GPAccess : AccessibilityService() {
         handle.addView(bar, LinearLayout.LayoutParams(ui.dp(4), ui.dp(80)))
         handle.setOnTouchListener(object : View.OnTouchListener {
             var x0 = 0f
+            var dragging = false
+            val longPress = Runnable {
+                dragging = true
+                handle.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                handle.animate().scaleX(1.8f).setDuration(120).start()
+            }
             override fun onTouch(v: View, e: MotionEvent): Boolean {
                 when (e.action) {
-                    MotionEvent.ACTION_DOWN -> x0 = e.rawX
-                    MotionEvent.ACTION_MOVE -> {
-                        val d = if (left) e.rawX - x0 else x0 - e.rawX
-                        if (d > ui.dp(18)) openPanel()
+                    MotionEvent.ACTION_DOWN -> {
+                        x0 = e.rawX
+                        dragging = false
+                        handler.postDelayed(longPress, 350)
                     }
-                    MotionEvent.ACTION_UP -> {
-                        if (abs(e.rawX - x0) < ui.dp(6)) openPanel()
+                    MotionEvent.ACTION_MOVE -> {
+                        if (dragging) {
+                            moveHandle(e.rawX, e.rawY)
+                        } else {
+                            val d = if (left) e.rawX - x0 else x0 - e.rawX
+                            if (d > ui.dp(18)) {
+                                handler.removeCallbacks(longPress)
+                                if (!shown) openPanel()
+                            }
+                        }
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        handler.removeCallbacks(longPress)
+                        handle.animate().scaleX(1f).setDuration(120).start()
+                        if (dragging) {
+                            prefs.edit().putInt("hy", hy).putBoolean("left", left).apply()
+                            place()
+                        } else if (e.action == MotionEvent.ACTION_UP && abs(e.rawX - x0) < ui.dp(6) && !shown) {
+                            openPanel()
+                        }
+                        dragging = false
                     }
                 }
                 return true
@@ -404,6 +459,9 @@ class GPAccess : AccessibilityService() {
         ready = true
         ui = Ui(this)
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        if (prefs.getInt("ver", 0) < 5) {
+            prefs.edit().putInt("hy", 40).putInt("hh", 80).putInt("ha", 90).putInt("ver", 5).apply()
+        }
         left = prefs.getBoolean("left", false)
         hy = prefs.getInt("hy", 40)
         start = SystemClock.elapsedRealtime()
@@ -414,7 +472,7 @@ class GPAccess : AccessibilityService() {
         tabs = makeTabs(this)
         buildHandle()
         buildPanel()
-        hlp = wlp(ui.dp(28), ui.dp(120))
+        hlp = wlp(ui.dp(28), ui.dp(120), FLAGS or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
         plp = wlp(ui.dp(310), MATCH, FLAGS or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH)
         place()
         addWin(handle, hlp)
