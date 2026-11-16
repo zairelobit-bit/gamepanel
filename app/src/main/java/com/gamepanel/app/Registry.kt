@@ -1,4 +1,10 @@
 package com.gamepanel.app
 
-fun makeTabs(g: GPAccess): List<Tab> =
-    listOf(ToolsTab(g), MonitorTab(g), AppsTab(g), EdgeTab(g))
+class Pages(g: GPAccess) {
+    val home = HomeTab(g)
+    val more = MoreTab(g)
+    val monitor = MonitorTab(g)
+    val aim = AimTab(g)
+    val edge = EdgeTab(g)
+    val apps = AppsTab(g)
+}
