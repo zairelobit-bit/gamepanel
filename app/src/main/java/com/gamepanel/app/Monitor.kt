@@ -1,9 +1,98 @@
 package com.gamepanel.app
 
+import android.content.res.ColorStateList
 import android.os.SystemClock
 import android.view.Gravity
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
+import java.io.File
+
+object Cpu {
+    fun pct(): Int {
+        var cur = 0L
+        var max = 0L
+        for (i in 0 until Runtime.getRuntime().availableProcessors()) {
+            val d = "/sys/devices/system/cpu/cpu$i/cpufreq/"
+            try {
+                cur += File(d + "scaling_cur_freq").readText().trim().toLong()
+                max += File(d + "cpuinfo_max_freq").readText().trim().toLong()
+            } catch (e: Exception) { }
+        }
+        return if (max > 0) (cur * 100 / max).toInt() else -1
+    }
+}
+
+class StatsBar(private val g: GPAccess) {
+    private var box: LinearLayout? = null
+    private val vals = ArrayList<TextView>()
+    private val bars = ArrayList<ProgressBar>()
+
+    fun isOn() = box != null
+
+    fun restore() {
+        if (g.prefs.getBoolean("w_bar", false)) show()
+    }
+
+    fun set(on: Boolean) {
+        g.prefs.edit().putBoolean("w_bar", on).apply()
+        if (on && box == null) {
+            show()
+        } else if (!on && box != null) {
+            g.delWin(box)
+            box = null
+            vals.clear()
+            bars.clear()
+        }
+    }
+
+    private fun show() {
+        val u = g.ui
+        val row = u.hbox()
+        row.background = u.bg(0xE6101018.toInt(), 10, 0x44FFFFFF)
+        row.setPadding(u.dp(8), u.dp(5), u.dp(8), u.dp(5))
+        for (n in listOf("CPU", "RAM", "BAT", "TEMP", "FPS")) {
+            val cell = u.vbox()
+            cell.gravity = Gravity.CENTER_HORIZONTAL
+            cell.addView(u.tv(n, 8f, DIM))
+            val v = u.tv("--", 11f, TXT, true)
+            cell.addView(v)
+            val pb = ProgressBar(g, null, android.R.attr.progressBarStyleHorizontal)
+            pb.max = 100
+            pb.progressTintList = ColorStateList.valueOf(ACC)
+            pb.progressBackgroundTintList = ColorStateList.valueOf(0x33FFFFFF)
+            cell.addView(pb, u.lp(u.dp(34), u.dp(3), 0f, 0, 2, 0, 0))
+            row.addView(cell, u.lp(WRAP, WRAP, 0f, 4, 0, 4, 0))
+            vals.add(v)
+            bars.add(pb)
+        }
+        val lp = g.wlp(WRAP, WRAP)
+        lp.gravity = Gravity.TOP or Gravity.START
+        lp.x = g.prefs.getInt("x_bar", u.dp(120))
+        lp.y = g.prefs.getInt("y_bar", u.dp(30))
+        g.drag(row, lp) {
+            g.prefs.edit().putInt("x_bar", lp.x).putInt("y_bar", lp.y).apply()
+        }
+        g.addWin(row, lp)
+        box = row
+    }
+
+    fun update() {
+        if (box == null) return
+        val s = g.st
+        val data = listOf(
+            (if (s.cpu < 0) "--" else "${s.cpu}%") to maxOf(s.cpu, 0),
+            "${s.ramPct}%" to s.ramPct,
+            "${s.batt}%" to s.batt,
+            "${s.temp.toInt()}\u00B0" to (s.temp * 100 / 60).toInt(),
+            "${s.hz}" to (s.hz * 100 / 120)
+        )
+        data.forEachIndexed { i, d ->
+            vals[i].text = d.first
+            bars[i].progress = d.second.coerceIn(0, 100)
+        }
+    }
+}
 
 class Widgets(private val g: GPAccess) {
     private class W(val key: String, val label: String, val fn: (Stats) -> String) {
@@ -68,7 +157,7 @@ class Widgets(private val g: GPAccess) {
     }
 }
 
-class MonitorTab(g: GPAccess) : Tab(g, "Monitor") {
+class MonitorTab(g: GPAccess) : Tab(g, "Game Stats") {
     private val rows = HashMap<String, TextView>()
 
     override fun build(body: LinearLayout) {
@@ -76,7 +165,8 @@ class MonitorTab(g: GPAccess) : Tab(g, "Monitor") {
         body.addView(u.sec("Live stats"))
         val c = u.card()
         val items = listOf(
-            "hz" to "Screen refresh",
+            "hz" to "FPS (screen)",
+            "cpu" to "CPU (by frequency)",
             "ping" to "Ping",
             "ram" to "RAM",
             "batt" to "Battery",
@@ -95,14 +185,18 @@ class MonitorTab(g: GPAccess) : Tab(g, "Monitor") {
             c.addView(r)
         }
         body.addView(c)
-        body.addView(u.note("In-game FPS cannot be read without root or ADB. Screen refresh shows your display rate."))
+        body.addView(u.note("FPS here is the screen frame rate. In-game FPS needs root or ADB. Ping is measured to the server below, not to your game server."))
 
         body.addView(u.sec("Ping server"))
         val servers = listOf("1.1.1.1", "8.8.8.8", "9.9.9.9")
-        body.addView(u.chips(servers, 3, servers.indexOf(g.host).coerceAtLeast(0)) { g.host = servers[it] })
+        body.addView(u.chips(servers, 3, servers.indexOf(g.host).coerceAtLeast(0)) {
+            g.host = servers[it]
+            g.prefs.edit().putString("hostsel", servers[it]).apply()
+        })
 
         body.addView(u.sec("Floating widgets"))
         val c2 = u.card()
+        c2.addView(u.swRow("Stats bar", "CPU, RAM, BAT, TEMP, FPS", g.sbar.isOn()) { g.sbar.set(it) })
         g.widgets.names().forEachIndexed { i, n ->
             c2.addView(u.swRow(n, "", g.widgets.isOn(i)) { g.widgets.set(i, it) })
         }
@@ -113,7 +207,8 @@ class MonitorTab(g: GPAccess) : Tab(g, "Monitor") {
 
     override fun tick() {
         val s = g.st
-        rows["hz"]?.text = "${s.hz} Hz"
+        rows["hz"]?.text = "${s.hz}"
+        rows["cpu"]?.text = if (s.cpu < 0) "N/A" else "${s.cpu}%"
         rows["ping"]?.text = if (s.ping < 0) "-- ms" else "${s.ping} ms"
         rows["ram"]?.text = String.format("%.1f / %.1f GB  (%d%%)", s.ramUsed, s.ramTotal, s.ramPct)
         rows["batt"]?.text = "${s.batt}%" + if (s.charging) "  charging" else ""
