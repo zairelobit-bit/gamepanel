@@ -49,6 +49,12 @@ class AppsTab(g: GPAccess) : Tab(g, "Apps") {
         }
         val pm = g.packageManager
         val fav = (g.prefs.getStringSet("apps", emptySet()) ?: emptySet()).toList()
+        val fc = u.card()
+        fc.addView(u.swRow("Floating windows", "Experimental, needs setup", g.prefs.getBoolean("float", false)) {
+            g.prefs.edit().putBoolean("float", it).apply()
+        })
+        fc.addView(u.btn("Floating setup and phone check") { g.go(g.pages.fl) })
+        body.addView(fc)
         body.addView(u.sec("Favorites"))
         val box = u.vbox()
         body.addView(box)
@@ -77,7 +83,6 @@ class AppsTab(g: GPAccess) : Tab(g, "Apps") {
             n++
         }
         if (n == 0) body.addView(u.note("No games detected. Add your games to Favorites."))
-        body.addView(u.note("Apps open in full screen. Android does not let apps float other apps."))
     }
 
     private fun pick(body: LinearLayout) {
