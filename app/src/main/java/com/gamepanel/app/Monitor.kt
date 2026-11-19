@@ -1,6 +1,7 @@
 package com.gamepanel.app
 
 import android.content.res.ColorStateList
+import android.net.TrafficStats
 import android.os.SystemClock
 import android.view.Gravity
 import android.widget.LinearLayout
@@ -21,6 +22,31 @@ object Cpu {
         }
         return if (max > 0) (cur * 100 / max).toInt() else -1
     }
+}
+
+object NetMeter {
+    var down = 0f
+    var up = 0f
+    private var lt = 0L
+    private var lr = 0L
+    private var lx = 0L
+
+    fun tick() {
+        val now = SystemClock.elapsedRealtime()
+        val r = TrafficStats.getTotalRxBytes()
+        val x = TrafficStats.getTotalTxBytes()
+        if (lt != 0L && r >= 0 && x >= 0 && now > lt) {
+            val dt = (now - lt) / 1000f
+            down = ((r - lr) / 1024f / dt).coerceAtLeast(0f)
+            up = ((x - lx) / 1024f / dt).coerceAtLeast(0f)
+        }
+        lt = now
+        lr = r
+        lx = x
+    }
+
+    fun fmt(kb: Float): String =
+        if (kb >= 1024f) String.format("%.1f MB/s", kb / 1024f) else String.format("%.0f KB/s", kb)
 }
 
 class StatsBar(private val g: GPAccess) {
@@ -105,7 +131,7 @@ class Widgets(private val g: GPAccess) {
         W("ping", "Ping ms") { if (it.ping < 0) "--" else "${it.ping}" },
         W("ram", "RAM used") { "${it.ramPct}%" },
         W("temp", "Temperature") { "${it.temp.toInt()}\u00B0" },
-        W("net", "Net KB/s") { "${it.down}/${it.up}" },
+        W("net", "Net speed") { NetMeter.fmt(NetMeter.down + NetMeter.up) },
         W("batt", "Battery") { "${it.batt}%" }
     )
 
@@ -120,6 +146,7 @@ class Widgets(private val g: GPAccess) {
     }
 
     fun update() {
+        NetMeter.tick()
         for (w in ws) w.v?.text = w.fn(g.st)
     }
 
@@ -171,7 +198,8 @@ class MonitorTab(g: GPAccess) : Tab(g, "Game Stats") {
             "ram" to "RAM",
             "batt" to "Battery",
             "temp" to "Temperature",
-            "net" to "Network",
+            "dl" to "Download",
+            "ul" to "Upload",
             "free" to "Storage free",
             "time" to "Session"
         )
@@ -213,7 +241,8 @@ class MonitorTab(g: GPAccess) : Tab(g, "Game Stats") {
         rows["ram"]?.text = String.format("%.1f / %.1f GB  (%d%%)", s.ramUsed, s.ramTotal, s.ramPct)
         rows["batt"]?.text = "${s.batt}%" + if (s.charging) "  charging" else ""
         rows["temp"]?.text = String.format("%.1f C", s.temp)
-        rows["net"]?.text = "down ${s.down} / up ${s.up} KB/s"
+        rows["dl"]?.text = NetMeter.fmt(NetMeter.down)
+        rows["ul"]?.text = NetMeter.fmt(NetMeter.up)
         rows["free"]?.text = String.format("%.1f GB", s.free)
         val t = (SystemClock.elapsedRealtime() - g.start) / 1000
         rows["time"]?.text = String.format("%d:%02d:%02d", t / 3600, (t / 60) % 60, t % 60)
