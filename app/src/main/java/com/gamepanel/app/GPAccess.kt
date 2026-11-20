@@ -91,6 +91,7 @@ class GPAccess : AccessibilityService() {
     private lateinit var panel: LinearLayout
     private lateinit var strip: LinearLayout
     private lateinit var body: LinearLayout
+    private lateinit var mainV: LinearLayout
     private lateinit var titleV: TextView
     private lateinit var backV: View
     private lateinit var hlp: WindowManager.LayoutParams
@@ -100,6 +101,7 @@ class GPAccess : AccessibilityService() {
     private var hAdded = false
     private var ready = false
     private var alive = false
+    private var gen = 0
     private var frames = 0
     private var lastRx = 0L
     private var lastTx = 0L
@@ -212,12 +214,6 @@ class GPAccess : AccessibilityService() {
         dnd(on)
     }
 
-    fun launch(pkg: String) {
-        val i = packageManager.getLaunchIntentForPackage(pkg) ?: return
-        nav(i)
-        closePanel()
-    }
-
     fun isGame(pkg: String): Boolean {
         val cat = games.getOrPut(pkg) {
             try {
@@ -243,7 +239,7 @@ class GPAccess : AccessibilityService() {
         handler.postDelayed({ vs.forEach { it.alpha = 1f } }, 1800)
     }
 
-    private fun off(): Float = ui.dp(if (left) -350 else 350).toFloat()
+    private fun off(): Float = (if (left) -plp.width else plp.width).toFloat()
 
     fun openPanel() {
         shown = true
@@ -256,7 +252,7 @@ class GPAccess : AccessibilityService() {
             addWin(panel, plp)
             added = true
         }
-        panel.animate().translationX(0f).alpha(1f).setDuration(200)
+        panel.animate().translationX(0f).alpha(panelA()).setDuration(200)
             .setInterpolator(DecelerateInterpolator()).start()
     }
 
@@ -356,9 +352,24 @@ class GPAccess : AccessibilityService() {
                 val s = safe()
         val land = s[0] > s[1]
         val side = if (left) Gravity.START else Gravity.END
+        plp.width = ui.dp(prefs.getInt("pw", 340).coerceAtLeast(260))
         plp.gravity = side or (if (land) Gravity.TOP else Gravity.CENTER_VERTICAL)
         plp.height = if (land) MATCH else minOf(ui.dp(400), s[1] - s[2] - s[3] - ui.dp(24))
         if (added) wm.updateViewLayout(panel, plp)
+    }
+
+    fun panelA(): Float = prefs.getInt("pa", 100).coerceIn(50, 100) / 100f
+
+    fun panelOpacity() {
+        if (added) panel.alpha = panelA()
+    }
+
+    fun applyTheme() {
+        if (!ready) return
+        bar.background = ui.bg(ACC, 3)
+        strip.background = cardBg()
+        mainV.background = cardBg()
+        render()
     }
 
     fun applyVis() {
@@ -420,7 +431,7 @@ class GPAccess : AccessibilityService() {
             intArrayOf(0xFF171720.toInt(), 0xFF0C0C12.toInt())
         )
         g.cornerRadius = ui.dp(20).toFloat()
-        g.setStroke(ui.dp(1), 0x66FF2D4A)
+        g.setStroke(ui.dp(1), (ACC and 0x00FFFFFF) or 0x66000000)
         return g
     }
 
@@ -439,6 +450,7 @@ class GPAccess : AccessibilityService() {
         strip.background = cardBg()
         panel.addView(strip, u.lp(u.dp(52), MATCH, 0f, 0, 0, 8, 0))
         val main = u.vbox()
+        mainV = main
         main.setPadding(u.dp(12), u.dp(10), u.dp(12), u.dp(10))
         main.background = cardBg()
         panel.addView(main, u.lp(0, MATCH, 1f))
@@ -497,8 +509,9 @@ class GPAccess : AccessibilityService() {
 
     private fun startPinger() {
         alive = true
+        val my = ++gen
         Thread {
-            while (alive) {
+            while (alive && my == gen) {
                 st.ping = try {
                     val s = Socket()
                     val t0 = System.nanoTime()
@@ -519,6 +532,7 @@ class GPAccess : AccessibilityService() {
         inst = this
         if (ready) return
         ready = true
+        Theme.load(this)
         ui = Ui(this)
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         if (prefs.getInt("ver", 0) < 5) {
@@ -575,6 +589,7 @@ class GPAccess : AccessibilityService() {
         handler.removeCallbacksAndMessages(null)
         Choreographer.getInstance().removeFrameCallback(frameCb)
         for (v in ArrayList<View>(layers)) delWin(v)
+        Floats.reset()
         added = false
         hAdded = false
         shown = false

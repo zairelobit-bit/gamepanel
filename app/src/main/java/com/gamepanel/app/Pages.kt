@@ -136,6 +136,7 @@ class MoreTab(g: GPAccess) : Tab(g, "Gaming Tools") {
         })
         add(u.orb(16, "Keep Alive", false) { g.keepAlive() })
         add(u.orb(18, "Apps", false) { g.go(g.pages.apps) })
+        add(u.orb(8, "Float Tools", false) { g.go(g.pages.ft) })
         add(u.orb(19, "Edge", false) { g.go(g.pages.edge) })
         add(u.orb(1, "Sound", false) { g.go(g.pages.snd) })
 

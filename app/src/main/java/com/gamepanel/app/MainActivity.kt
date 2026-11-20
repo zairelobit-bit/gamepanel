@@ -24,6 +24,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
+        Theme.load(this)
         ui = Ui(this)
         window.statusBarColor = 0xFF0B0B10.toInt()
         window.navigationBarColor = 0xFF0B0B10.toInt()

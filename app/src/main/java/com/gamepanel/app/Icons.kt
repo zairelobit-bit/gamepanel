@@ -207,7 +207,7 @@ class Graph(c: Context) : View(c) {
 fun Ui.orbBg(on: Boolean): RippleDrawable {
     val g = GradientDrawable()
     g.shape = GradientDrawable.OVAL
-    g.setColor(if (on) 0x40FF2D4A else 0x22FFFFFF)
+    g.setColor(if (on) ((ACC and 0x00FFFFFF) or 0x40000000) else 0x22FFFFFF)
     g.setStroke(dp(1), if (on) ACC else 0x33FFFFFF)
     val m = GradientDrawable()
     m.shape = GradientDrawable.OVAL

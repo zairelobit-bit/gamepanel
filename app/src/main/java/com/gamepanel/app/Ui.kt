@@ -16,7 +16,7 @@ import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 
-val ACC = 0xFFFF2D4A.toInt()
+var ACC = 0xFFFF2D4A.toInt()
 val TXT = 0xFFF2F2F7.toInt()
 val DIM = 0xFFA3A3B0.toInt()
 const val MATCH = -1
@@ -134,7 +134,7 @@ class Ui(val c: Context) {
     }
 
     fun look(v: TextView, on: Boolean) {
-        v.background = rip(if (on) 0x40FF2D4A else 0x1FFFFFFF, 11, if (on) ACC else 0x1FFFFFFF)
+        v.background = rip(if (on) ((ACC and 0x00FFFFFF) or 0x40000000) else 0x1FFFFFFF, 11, if (on) ACC else 0x1FFFFFFF)
         v.setTextColor(if (on) Color.WHITE else TXT)
     }
 

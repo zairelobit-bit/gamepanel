@@ -1,5 +1,6 @@
 package com.gamepanel.app
 
+import android.accessibilityservice.AccessibilityService
 import android.app.ActivityOptions
 import android.app.Notification
 import android.app.NotificationChannel
@@ -34,27 +35,49 @@ class KeepService : Service() {
     }
 }
 
+private var floatHinted = false
+
+fun GPAccess.freeformOk(): Boolean {
+    val feat = packageManager.hasSystemFeature("android.software.freeform_window_management")
+    val on = Settings.Global.getInt(contentResolver, "enable_freeform_support", 0) == 1
+    return feat || on
+}
+
+// Satu-satunya fungsi launch. Dulu ada versi anggota di GPAccess yang selalu menang atas versi ini,
+// jadi mode jendela mengambang tidak pernah jalan dan aplikasi selalu terbuka layar penuh.
 fun GPAccess.launch(pkg: String) {
-    val i = packageManager.getLaunchIntentForPackage(pkg) ?: return
-    if (prefs.getBoolean("float", false)) {
-        val m = DisplayMetrics()
-        wm.defaultDisplay.getRealMetrics(m)
-        val w = (m.widthPixels * 0.5f).toInt()
-        val h = (m.heightPixels * 0.7f).toInt()
-        val l = (m.widthPixels - w) / 2
-        val t = (m.heightPixels - h) / 2
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
-        val o = ActivityOptions.makeBasic()
-        o.setLaunchBounds(Rect(l, t, l + w, t + h))
-        try {
-            startActivity(i, o.toBundle())
-        } catch (e: Exception) {
-            nav(i)
-        }
-    } else {
-        nav(i)
+    val i = packageManager.getLaunchIntentForPackage(pkg)
+    if (i == null) {
+        toast("App not found")
+        return
     }
     closePanel()
+    if (!prefs.getBoolean("float", false)) {
+        nav(i)
+        return
+    }
+    if (!freeformOk() && !floatHinted) {
+        floatHinted = true
+        toast("No freeform support detected. If the app opens full screen, use Float Tools or Split screen.")
+    }
+    val m = DisplayMetrics()
+    wm.defaultDisplay.getRealMetrics(m)
+    val w = m.widthPixels * prefs.getInt("fw", 55).coerceIn(30, 90) / 100
+    val h = m.heightPixels * prefs.getInt("fh", 70).coerceIn(30, 90) / 100
+    val l = (m.widthPixels - w) / 2
+    val t = (m.heightPixels - h) / 2
+    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
+    val o = ActivityOptions.makeBasic()
+    o.setLaunchBounds(Rect(l, t, l + w, t + h))
+    try {
+        val mt = ActivityOptions::class.java.getMethod("setLaunchWindowingMode", Int::class.javaPrimitiveType)
+        mt.invoke(o, 5)
+    } catch (e: Throwable) { }
+    try {
+        startActivity(i, o.toBundle())
+    } catch (e: Exception) {
+        nav(i)
+    }
 }
 
 class FloatTab(g: GPAccess) : Tab(g, "Floating Apps") {
@@ -77,6 +100,22 @@ class FloatTab(g: GPAccess) : Tab(g, "Floating Apps") {
             g.prefs.edit().putBoolean("float", it).apply()
         })
         body.addView(c)
+        body.addView(u.btn("Float Tools: browser, notes, calc") { g.go(g.pages.ft) })
+        body.addView(u.btn("Split screen: current app + another") {
+            g.closePanel()
+            g.handler.postDelayed({
+                g.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN)
+            }, 300)
+        })
+        body.addView(u.sec("Window size"))
+        val c3 = u.card()
+        c3.addView(u.slider("Width", 90, g.prefs.getInt("fw", 55), { "${it.coerceAtLeast(30)}%" }) {
+            g.prefs.edit().putInt("fw", it.coerceAtLeast(30)).apply()
+        })
+        c3.addView(u.slider("Height", 90, g.prefs.getInt("fh", 70), { "${it.coerceAtLeast(30)}%" }) {
+            g.prefs.edit().putInt("fh", it.coerceAtLeast(30)).apply()
+        })
+        body.addView(c3)
         body.addView(u.sec("Phone check"))
         val c2 = u.card()
         row(c2, "Android version", "API " + Build.VERSION.SDK_INT, Build.VERSION.SDK_INT >= 29)
@@ -85,7 +124,7 @@ class FloatTab(g: GPAccess) : Tab(g, "Floating Apps") {
         row(c2, "Freeform system feature", if (feat) "YES" else "NO", feat)
         body.addView(c2)
         body.addView(u.sec("Setup"))
-        body.addView(u.note("1. Open Developer options. Turn on Force activities to be resizable and Enable freeform windows.\n2. Restart the phone.\n3. Clear all recent apps, then open an app from this panel.\nAndroid 9 or older also needs an ADB command from a PC. If apps still open full screen, this ROM does not allow floating windows."))
+        body.addView(u.note("Floating third-party apps only work if the phone ROM supports freeform windows.\n1. Open Developer options. Turn on Force activities to be resizable and Enable freeform windows.\n2. Restart the phone.\n3. Clear all recent apps, then open an app from this panel.\nIf apps still open full screen, this ROM does not allow floating windows. Use Float Tools (works everywhere) or Split screen instead."))
         body.addView(u.btn("Open Developer options") { g.open(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS) })
     }
 }

@@ -54,6 +54,7 @@ class AppsTab(g: GPAccess) : Tab(g, "Apps") {
             g.prefs.edit().putBoolean("float", it).apply()
         })
         fc.addView(u.btn("Floating setup and phone check") { g.go(g.pages.fl) })
+        fc.addView(u.btn("Float Tools: browser, notes, calc") { g.go(g.pages.ft) })
         body.addView(fc)
         body.addView(u.sec("Favorites"))
         val box = u.vbox()
@@ -144,7 +145,23 @@ class EdgeTab(g: GPAccess) : Tab(g, "Edge") {
             g.place()
         })
         body.addView(c)
+        body.addView(u.sec("Theme"))
+        body.addView(u.chips(Theme.names, 3, p.getInt("theme", 0)) {
+            p.edit().putInt("theme", it).apply()
+            Theme.load(g)
+            g.applyTheme()
+        })
         body.addView(u.sec("Panel"))
+        val pc = u.card()
+        pc.addView(u.slider("Width", 440, p.getInt("pw", 340), { "${it.coerceAtLeast(260)} dp" }) {
+            p.edit().putInt("pw", it.coerceAtLeast(260)).apply()
+            g.place()
+        })
+        pc.addView(u.slider("Opacity", 100, p.getInt("pa", 100), { "${it.coerceAtLeast(50)}%" }) {
+            p.edit().putInt("pa", it.coerceAtLeast(50)).apply()
+            g.panelOpacity()
+        })
+        body.addView(pc)
         body.addView(u.btn("Close panel") { g.closePanel() })
     }
 }

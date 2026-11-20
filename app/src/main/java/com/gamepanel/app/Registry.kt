@@ -10,6 +10,7 @@ class Pages(g: GPAccess) {
     val edge = EdgeTab(g)
     val apps = AppsTab(g)
     val fl = FloatTab(g)
+    val ft = FloatToolsTab(g)
     val snd = SoundTab(g)
 
     init {
