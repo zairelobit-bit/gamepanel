@@ -9,8 +9,8 @@ android {
         applicationId 'com.gamepanel.app'
         minSdk 26
         targetSdk 34
-        versionCode 3
-        versionName '1.2'
+        versionCode 4
+        versionName '2.0'
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -18,3 +18,9 @@ android {
     }
     kotlinOptions { jvmTarget = '17' }
 }
+dependencies {
+    // Optional bridge: Game Panel's normal features do not depend on Shizuku being installed.
+    implementation 'dev.rikka.shizuku:api:13.1.5'
+    implementation 'dev.rikka.shizuku:provider:13.1.5'
+}
+
