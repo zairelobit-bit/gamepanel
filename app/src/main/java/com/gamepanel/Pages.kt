@@ -107,6 +107,8 @@ class MoreTab(g: GPAccess) : Tab(g, "Gaming Tools") {
             u.orbSet(ring, v)
         })
         add(u.orb(20, "G-Stats", false) { g.go(g.pages.monitor) })
+        add(u.orb(21, "Frame X", false) { g.go(g.pages.framex) })
+        add(u.orb(23, "50 Features", false) { g.go(g.pages.features) })
         add(u.orb(22, "Net Speed", g.widgets.isOn(4)) { ring ->
             g.widgets.set(4, !g.widgets.isOn(4))
             u.orbSet(ring, g.widgets.isOn(4))

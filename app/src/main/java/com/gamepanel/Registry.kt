@@ -12,6 +12,8 @@ class Pages(g: GPAccess) {
     val fl = FloatTab(g)
     val ft = FloatToolsTab(g)
     val snd = SoundTab(g)
+    val framex = FrameXTab(g)
+    val features = FeatureIndexTab(g)
 
     init {
         if (g.prefs.getInt("ver", 0) < 6) {
