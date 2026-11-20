@@ -2,6 +2,7 @@ package com.gamepanel.app
 
 import android.content.Context
 import android.media.AudioManager
+import android.os.Build
 import android.provider.Settings
 import android.view.Gravity
 import android.widget.LinearLayout
@@ -53,8 +54,11 @@ class HomeTab(g: GPAccess) : Tab(g, "Game Panel") {
             })
         })
         add(u.orb(2, "DND", g.dndOn()) { ring ->
-            g.dnd(!g.dndOn())
-            u.orbSet(ring, g.dndOn())
+            if (dndOk(g)) {
+                val v = !g.dndOn()
+                g.dnd(v)
+                u.orbSet(ring, v)
+            }
         })
         add(u.orb(4, "Meter", g.sbar.isOn()) { ring ->
             g.sbar.set(!g.sbar.isOn())
@@ -87,6 +91,9 @@ class HomeTab(g: GPAccess) : Tab(g, "Game Panel") {
 }
 
 class MoreTab(g: GPAccess) : Tab(g, "Gaming Tools") {
+    private fun wifiPanel(): String =
+        if (Build.VERSION.SDK_INT >= 29) Settings.Panel.ACTION_INTERNET_CONNECTIVITY else Settings.ACTION_WIFI_SETTINGS
+
     override fun build(body: LinearLayout) {
         val p = g.prefs
         val box = u.vbox()
@@ -114,16 +121,23 @@ class MoreTab(g: GPAccess) : Tab(g, "Gaming Tools") {
             u.orbSet(ring, g.keepOnState())
         })
         add(u.orb(3, "Game Mode", g.gameModeOn()) { ring ->
-            g.gameMode(!g.gameModeOn())
-            u.orbSet(ring, g.gameModeOn())
+            val v = !g.gameModeOn()
+            g.prefs.edit().putBoolean("gm", v).apply()
+            g.keepOn(v)
+            if (dndOk(g)) g.dnd(v)
+            u.orbSet(ring, v)
         })
         add(u.orb(5, "Crosshair", false) { g.go(g.pages.aim) })
-        add(u.orb(14, "Wi-Fi", false) { g.open(Settings.ACTION_WIFI_SETTINGS) })
-        add(u.orb(15, "Bluetooth", false) { g.open(Settings.ACTION_BLUETOOTH_SETTINGS) })
+        add(u.orb(14, "Wi-Fi", false) { g.open(wifiPanel()) })
+        add(u.orb(15, "Bluetooth", btOn()) { ring ->
+            val v = !btOn()
+            btSet(g, v)
+            u.orbSet(ring, v)
+        })
         add(u.orb(16, "Keep Alive", false) { g.keepAlive() })
         add(u.orb(18, "Apps", false) { g.go(g.pages.apps) })
         add(u.orb(19, "Edge", false) { g.go(g.pages.edge) })
-        add(u.orb(1, "Sound", false) { g.open(Settings.ACTION_SOUND_SETTINGS) })
+        add(u.orb(1, "Sound", false) { g.go(g.pages.snd) })
 
         body.addView(u.sec("Screen"))
         val c1 = u.card()
