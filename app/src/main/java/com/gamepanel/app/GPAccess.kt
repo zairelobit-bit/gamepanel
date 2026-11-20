@@ -353,7 +353,11 @@ class GPAccess : AccessibilityService() {
 
     fun place() {
         placeHandle()
-        plp.gravity = (if (left) Gravity.START else Gravity.END) or Gravity.TOP
+                val s = safe()
+        val land = s[0] > s[1]
+        val side = if (left) Gravity.START else Gravity.END
+        plp.gravity = side or (if (land) Gravity.TOP else Gravity.CENTER_VERTICAL)
+        plp.height = if (land) MATCH else minOf(ui.dp(400), s[1] - s[2] - s[3] - ui.dp(24))
         if (added) wm.updateViewLayout(panel, plp)
     }
 
