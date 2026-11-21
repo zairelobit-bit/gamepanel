@@ -1,40 +1,29 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.sidetools.app">
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="sidetools"
-        android:theme="@style/Theme.SideTools"
-        android:usesCleartextTraffic="true">
-        
+        android:label="GamePanel"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
         <activity
             android:name=".MainActivity"
-            android:exported="true"
-            android:screenOrientation="landscape"
-            android:theme="@style/Theme.SideTools.Lobby">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <service
-            android:name=".FloatingService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse" />
-            
-        <service
-            android:name=".MusicPlayerService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL">
+            <intent-filter>
+                <action android:name="rikka.shizuku.intent.action.REQUEST_PERMISSION" />
+            </intent-filter>
+        </provider>
     </application>
 </manifest>
